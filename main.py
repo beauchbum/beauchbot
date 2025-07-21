@@ -7,6 +7,8 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 from smolagents import LiteLLMModel, ToolCallingAgent, ToolCollection
 
+MCP_URL = os.environ.get("MCP_URL")
+
 app = FastAPI()
 
 # Set up logging
@@ -21,7 +23,7 @@ async def root():
 async def agent(query: str):
     model = LiteLLMModel(model_id="openai/gpt-4o-mini", temperature=0.0, api_key=os.environ["OPENAI_API_KEY"])
 
-    with ToolCollection.from_mcp({"url": "http://mcp:8888/mcp", "transport": "streamable-http"}, trust_remote_code=True) as tool_collection:
+    with ToolCollection.from_mcp({"url": MCP_URL, "transport": "streamable-http"}, trust_remote_code=True) as tool_collection:
         agent = ToolCallingAgent(
             model=model,
             tools=[*tool_collection.tools],
@@ -90,7 +92,7 @@ Be helpful, friendly, and concise in your responses. If you're unsure about some
         )
 
         with ToolCollection.from_mcp(
-            {"url": "http://mcp:8888/mcp", "transport": "streamable-http"}, 
+            {"url": MCP_URL, "transport": "streamable-http"}, 
             trust_remote_code=True
         ) as tool_collection:
             agent = ToolCallingAgent(
