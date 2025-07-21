@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# Get the container ID for the daas-server
+CONTAINER_ID=$(docker ps --filter "name=ai-agents-server" --format "{{.ID}}")
+
+if [ -z "$CONTAINER_ID" ]; then
+    echo "Error: ai-agents-server container not found. Is it running?"
+    exit 1
+fi
+
+echo "Attaching to ai-agents-server container (ID: $CONTAINER_ID)..."
+docker attach $CONTAINER_ID 
