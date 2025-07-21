@@ -6,7 +6,8 @@ A Python [FastAPI](https://fastapi.tiangolo.com) service that provides an AI ass
 
 - **AI-Powered Text Message Responses**: BeauchBot automatically responds to incoming text messages
 - **Contact Management**: Look up contacts by name for easy messaging
-- **Calendar Integration**: Read and interact with Google Calendar documents
+- **Google Workspace Integration**: Read Google Docs, Sheets, and Calendar documents
+- **Spreadsheet Analysis**: Access and analyze Google Sheets data with formatted output
 - **Twilio Integration**: Send and receive SMS messages
 - **MCP Tools**: Extensible tool system for various functionalities
 
@@ -91,7 +92,12 @@ When you send a text message to your Twilio number, BeauchBot can:
 - Send messages to contacts: "Send John a message saying hello"
 - List all available contacts
 
-### Calendar Integration
+### Google Docs & Sheets Integration
+- List all accessible documents: "What Google Docs do I have access to?"
+- List all accessible spreadsheets: "Show me my Google Sheets"
+- Read any document by ID: "Read document [ID] for me"
+- Read spreadsheet data: "Show me the Budget spreadsheet"
+- Read specific sheet tabs: "Read the 'Q1 Data' tab from my budget sheet"
 - Read your calendar: "What's on my calendar today?"
 - Check upcoming events and appointments
 - Provide calendar summaries
@@ -109,6 +115,26 @@ BeauchBot: "I'll send that message to Ryan now." [sends text to Ryan's number]
 
 You: "What's on my calendar?"
 BeauchBot: "Let me check your calendar..." [reads and summarizes calendar]
+
+You: "What Google documents do I have access to?"
+BeauchBot: "I found 12 documents. Here are the most recent ones: Meeting Notes (Jan 15), Project Plan (Jan 10), Budget 2024 (Jan 5)..."
+
+You: "Show me my Google Sheets"
+BeauchBot: "I found 8 spreadsheets: Budget 2024 (Jan 12), Sales Data (Jan 8), Team Contacts (Dec 20)..."
+
+You: "Read the Budget 2024 spreadsheet"
+BeauchBot: "Spreadsheet: Budget 2024
+Sheet: Q1 Budget
+
+Data (15 rows):
+Category    | Jan    | Feb    | Mar    | Total
+-----------|--------|--------|--------|--------
+Marketing  | 5000   | 5500   | 6000   | 16500
+Sales      | 12000  | 13000  | 14000  | 39000
+..."
+
+You: "Read the Meeting Notes document for me"
+BeauchBot: "Here's the content from Meeting Notes: [document content]"
 ```
 
 ## Deployment on Render

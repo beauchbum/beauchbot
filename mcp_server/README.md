@@ -7,7 +7,11 @@ This MCP server provides various tools and utilities for the BeauchBot system.
 ### System Tools
 - `get_current_time()` - Get the current date and time in ISO format
 
-### Calendar Tools
+### Google Docs & Sheets Tools
+- `list_google_documents(limit=20)` - List all Google Documents the service account can access
+- `list_google_sheets(limit=20)` - List all Google Sheets the service account can access
+- `read_google_document(document_id)` - Read any Google Document by its ID
+- `read_google_sheet(spreadsheet_id, sheet_name=None, range_name=None)` - Read Google Sheets data with optional sheet and range specification
 - `read_calendar()` - Read the content of your calendar document
 
 ### Messaging Tools
@@ -96,6 +100,30 @@ if "error" not in contact:
 
 # List all contacts
 all_contacts = list_contacts()
+
+# List Google Documents
+documents = list_google_documents(limit=10)
+# Returns: [{"id": "doc_id", "name": "Document Name", "modified_time": "...", ...}]
+
+# List Google Sheets
+sheets = list_google_sheets(limit=10)
+# Returns: [{"id": "sheet_id", "name": "Sheet Name", "modified_time": "...", ...}]
+
+# Read any Google Document
+content = read_google_document("1ABC123_document_id_here")
+# Returns: "Document: Title\n\nDocument content here..."
+
+# Read Google Sheet (first sheet, all data)
+sheet_content = read_google_sheet("1XYZ456_spreadsheet_id_here")
+
+# Read specific sheet tab
+sheet_content = read_google_sheet("1XYZ456_spreadsheet_id_here", sheet_name="Budget")
+
+# Read specific range
+sheet_content = read_google_sheet("1XYZ456_spreadsheet_id_here", sheet_name="Data", range_name="A1:E10")
+
+# Read your calendar document
+calendar_content = read_calendar()
 ```
 
 **Adding more contacts:**
@@ -124,10 +152,11 @@ The calendar tool reads from a specific Google Doc that contains your calendar e
 
 1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project or select an existing one
-3. Enable the Google Docs API:
+3. Enable the required Google APIs:
    - Go to "APIs & Services" > "Library"
-   - Search for "Google Docs API"
-   - Click "Enable"
+   - Search for "Google Docs API" and click "Enable"
+   - Search for "Google Drive API" and click "Enable"
+   - Search for "Google Sheets API" and click "Enable"
 4. Create a service account:
    - Go to "APIs & Services" > "Credentials"
    - Click "Create Credentials" > "Service Account"
