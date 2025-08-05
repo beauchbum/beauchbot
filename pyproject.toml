@@ -8,8 +8,7 @@ packages = []
 [tool.poetry.dependencies]
 python = "^3.11"
 fastapi = {extras = ["all"], version = "^0.110.0"}
-fastmcp = "^2.3.0"
-smolagents = {extras = ["litellm", "mcp", "openai", "toolkit"], version = "^1.18.0"}
+smolagents = {extras = ["litellm", "openai", "toolkit"], version = "^1.18.0"}
 google-api-python-client = "^2.147.0"
 google-auth = "^2.35.0"
 requests = "^2.31.0"
