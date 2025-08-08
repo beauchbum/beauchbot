@@ -8,7 +8,7 @@ across different entry points (web server, scripts, tests, etc.)
 import os
 import logging
 
-from smolagents import LiteLLMModel, ToolCallingAgent, Tool
+from smolagents import LiteLLMModel, ToolCallingAgent, Tool, LogLevel
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,8 @@ def create_beauchbot_agent(
             model=model,
             tools=tools,
             add_base_tools=add_base_tools,
-            instructions=system_prompt
+            instructions=system_prompt,
+            verbosity_level=LogLevel.ERROR
         )
         
         logger.info(f"Created BeauchBot agent with model: {model_id}")
