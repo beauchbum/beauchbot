@@ -113,6 +113,3 @@ venv.bak/
 # Docker
 .docker/
 docker-compose.override.yml
-
-# Poetry
-poetry.lock
