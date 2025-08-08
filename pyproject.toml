@@ -1,20 +1,19 @@
-[tool.poetry]
+[project]
 name = "beauchbot"
 version = "0.1.0"
 description = "A FastAPI application"
-authors = ["Ryan Beauchamp"]
-packages = []
+authors = [{name = "Ryan Beauchamp"}]
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi[all]>=0.110.0",
+    "smolagents[litellm,openai,toolkit]>=1.18.0",
+    "google-api-python-client>=2.147.0",
+    "google-auth>=2.35.0",
+    "requests>=2.31.0",
+    "twilio>=9.0.0",
+    "backoff>=2.2.1",
+    "litellm[proxy]>=1.68.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-fastapi = {extras = ["all"], version = "^0.110.0"}
-smolagents = {extras = ["litellm", "openai", "toolkit"], version = "^1.18.0"}
-google-api-python-client = "^2.147.0"
-google-auth = "^2.35.0"
-requests = "^2.31.0"
-twilio = "^9.0.0"
-backoff = "^2.2.1"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api" 
+[tool.hatch.build.targets.wheel]
+packages = [] 

@@ -11,20 +11,22 @@ RUN apt-get update && \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Poetry using pip (more reliable in Docker)
-RUN pip install poetry==1.8.3
+# Install uv
+RUN pip install uv
 
-# Copy Poetry configuration files
-COPY pyproject.toml poetry.lock ./
+ENV PYSETUP_PATH="/usr/src/app"
 
-# Configure Poetry to not create a virtual environment inside container
-RUN poetry config virtualenvs.create false
-
-# Install dependencies
-RUN poetry install --no-interaction --no-ansi --no-root
+WORKDIR $PYSETUP_PATH
 
 # Copy application code
 COPY . .
+
+# Install dependencies using uv
+RUN uv sync --locked --no-install-project
+
+# Activate venv by default in shell (optional but nice)
+ENV VIRTUAL_ENV=$PYSETUP_PATH/.venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # Expose port
 EXPOSE 8000

@@ -50,8 +50,8 @@ The API will be available at http://localhost:8000
 ### Local Development
 
 ```shell
-poetry install
-poetry run uvicorn message_server:app --reload
+uv sync --no-editable
+uv run uvicorn message_server:app --reload
 ```
 
 ## Twilio Setup
@@ -142,11 +142,15 @@ Configured for deployment on Render via `render.yaml`. Add environment variables
 
 ```shell
 # Add dependencies
-poetry add package-name
+uv add package-name
 
 # Update dependencies  
-poetry update
+uv sync --upgrade --no-editable
 
 # Activate virtual environment
-poetry shell
+source .venv/bin/activate  # Unix/Mac
+.venv\Scripts\activate     # Windows
+
+# Or run commands directly with uv
+uv run python script.py
 ```
