@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   api:
     build: 
@@ -12,7 +10,7 @@ services:
     env_file:
       - .env
     # Enable hot reload
-    command: poetry run uvicorn server:app --host 0.0.0.0 --port 8000
+    command: poetry run uvicorn message_server:app --host 0.0.0.0 --port 8000
     restart: always
     networks:
       - backend

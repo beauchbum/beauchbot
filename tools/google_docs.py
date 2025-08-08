@@ -19,7 +19,7 @@ from smolagents import Tool
 from googleapiclient.errors import HttpError
 
 # Import shared Google utilities
-from google_utils import get_google_docs_service, get_google_drive_service, extract_text_from_document
+from utils.google_utils import get_google_docs_service, get_google_drive_service, extract_text_from_document
 
 logger = logging.getLogger(__name__)
 

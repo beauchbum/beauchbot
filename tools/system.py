@@ -5,17 +5,21 @@ Provides basic system functionality like getting current time.
 """
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from smolagents import Tool
 
 
 class GetCurrentTimeTool(Tool):
     name = "get_current_time"
-    description = """Get the current date and time in ISO format.
+    description = """Get the current date and time in Eastern Time (EST/EDT).
     
-    Returns the current date and time as an ISO 8601 formatted string (e.g., '2024-03-15T14:30:00.123456').
+    Returns the current date and time in Eastern timezone as an ISO 8601 formatted string 
+    (e.g., '2024-03-15T14:30:00-05:00'). Automatically handles EST/EDT transitions.
     Useful for timestamping, scheduling, or time-based calculations."""
     inputs = {}
     output_type = "string"
 
     def forward(self) -> str:
-        return datetime.now().isoformat()
+        # Get current time in Eastern timezone (handles EST/EDT automatically)
+        eastern_time = datetime.now(ZoneInfo("America/New_York"))
+        return eastern_time.isoformat()

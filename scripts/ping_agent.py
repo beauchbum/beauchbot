@@ -17,9 +17,11 @@ Environment Variables Required:
 - TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER: For messaging
 
 Usage:
-    python scripts/ping_agent.py              # Execute cron job
-    python scripts/ping_agent.py --dry-run    # Test without execution
-    python scripts/ping_agent.py --verbose    # Enable debug logging
+    python scripts/ping_agent.py                                    # Execute cron job with current Eastern time
+    python scripts/ping_agent.py --dry-run                          # Dry run (no text_me tool)
+    python scripts/ping_agent.py --simulate-time "2024-01-15 09:00" # Test with simulated time (9 AM EST)
+    python scripts/ping_agent.py -t "2024-12-25"                    # Test Christmas day (midnight EST)
+    python scripts/ping_agent.py -t "2024-06-15 18:30:00"           # Test specific time with seconds (EST)
 
 Typical cron entry (runs every hour):
     0 * * * * cd /path/to/beauchbot && python scripts/ping_agent.py >> /var/log/beauchbot_cron.log 2>&1
@@ -30,13 +32,24 @@ import os
 import argparse
 import logging
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 # Add the project root to the Python path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from agent_factory import get_cron_agent
+from utils.agent_factory import create_beauchbot_agent
+from utils.google_utils import get_system_prompt_from_google_doc
+from tools import (
+    list_google_documents,
+    read_google_document, 
+    send_text,
+    get_conversation_history,
+    text_me,
+    get_phone_numbers,
+    get_current_time
+)
 
 # Set up logging
 logging.basicConfig(
@@ -46,12 +59,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def run_cron_execution() -> int:
+def run_cron_execution(simulated_time: str = None, dry_run: bool = False) -> int:
     """
     Execute the cron job by instantiating the agent and running its instructions.
     
     Args:
-        dry_run: If True, initialize agent but don't execute instructions
+        simulated_time: Optional datetime string to simulate (format: "YYYY-MM-DD HH:MM")
         
     Returns:
         Exit code (0 for success, 1 for failure)
@@ -74,12 +87,56 @@ def run_cron_execution() -> int:
         
         # Initialize the cron agent (this will read the system prompt from Google Doc)
         logger.info("Initializing BeauchBot cron agent...")
-        agent = get_cron_agent()
+        system_prompt = get_system_prompt_from_google_doc()
+        
+        # Standard BeauchBot tools
+        beauchbot_tools = [
+            list_google_documents,
+            read_google_document, 
+            send_text,
+            get_conversation_history,
+            text_me,
+            get_phone_numbers
+        ]
+        
+        agent =  create_beauchbot_agent(
+            system_prompt=system_prompt,
+            model_id=os.getenv("MODEL_ID"),
+            temperature=0,
+            add_base_tools=True,
+            tools=beauchbot_tools if not dry_run else [tool for tool in beauchbot_tools if tool.name not in ["send_text", "text_me"]]
+        )
         logger.info("✅ Agent initialized successfully")
         
-        # Execute the agent with a standard cron context
+        # Get Eastern timezone for all time operations
+        eastern_tz = ZoneInfo("America/New_York")
+        
+        # Determine the time to use (actual or simulated) - always in Eastern time
+        if simulated_time:
+            try:
+                # Parse the simulated time (assume it's in Eastern time)
+                if len(simulated_time.split(",")) == 2:  # "YYYY-MM-DD HH:MM"
+                    naive_time = datetime.strptime(simulated_time, '%Y-%m-%d,%H:%M')
+                elif len(simulated_time.split(",")) == 1:  # "YYYY-MM-DD" (assume midnight)
+                    naive_time = datetime.strptime(simulated_time, '%Y-%m-%d')
+                
+                # Convert to Eastern timezone
+                current_time_obj = naive_time.replace(tzinfo=eastern_tz)
+                current_time_str = current_time_obj.strftime('%Y-%m-%d %I:%M %p')
+                logger.info(f"🕐 Using simulated time: {current_time_str}")
+                
+            except ValueError as e:
+                logger.error(f"Invalid simulated time format: {simulated_time}. Use format 'YYYY-MM-DD HH:MM' or 'YYYY-MM-DD'")
+                return 1
+        else:
+            # Use actual current time in Eastern timezone
+            current_time_obj = datetime.now(eastern_tz)
+            current_time_str = current_time_obj.strftime('%Y-%m-%d %I:%M %p')
+        
+        # Execute the agent with the cron context (using actual or simulated Eastern time)
+        time_context = "simulated" if simulated_time else "actual"
         cron_context = f"""
-It is now {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}.
+The current time is {current_time_str} ({time_context} Eastern time).
 
 You are running as a scheduled cron job. Execute the instructions in your system prompt.
 
@@ -108,22 +165,21 @@ def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="BeauchBot cron job entry point",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__
     )
     parser.add_argument(
-        "--verbose", "-v",
+        "--dry-run", "-d",
         action="store_true",
-        help="Enable verbose debug logging"
+        help="Dry run the cron job (initialize agent but without tools to text)"
+    )
+    parser.add_argument(
+        "--simulate-time", "-t",
+        help="Simulate a specific time in Eastern timezone (format: 'YYYY-MM-DD HH:MM' or 'YYYY-MM-DD')"
     )
     
     args = parser.parse_args()
     
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
-        logger.debug("Debug logging enabled")
     
-    exit_code = run_cron_execution()
+    exit_code = run_cron_execution(simulated_time=args.simulate_time, dry_run=args.dry_run)
     
     if exit_code == 0:
         logger.info("🎉 Cron job completed successfully")
@@ -134,4 +190,5 @@ def main():
 
 
 if __name__ == "__main__":
+    
     sys.exit(main())

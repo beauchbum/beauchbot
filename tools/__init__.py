@@ -17,6 +17,7 @@ from .google_docs import (
 from .twilio import (
     SendTextTool,
     GetConversationHistoryTool,
+    TextMeTool,
 )
 
 from .system import (
@@ -28,5 +29,6 @@ list_google_documents = ListGoogleDocumentsTool()
 read_google_document = ReadGoogleDocumentTool()
 send_text = SendTextTool()
 get_conversation_history = GetConversationHistoryTool()
+text_me = TextMeTool()
 get_phone_numbers = GetPhoneNumbersTool()
 get_current_time = GetCurrentTimeTool()

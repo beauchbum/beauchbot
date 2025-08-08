@@ -7,36 +7,25 @@ across different entry points (web server, scripts, tests, etc.)
 
 import os
 import logging
-from typing import Optional
 
-from smolagents import LiteLLMModel, ToolCallingAgent
-from google_utils import get_system_prompt_from_google_doc
-
-# Import local tools
-from tools import (
-    list_google_documents,
-    read_google_document, 
-    send_text,
-    get_conversation_history,
-    get_phone_numbers,
-    get_current_time
-)
+from smolagents import LiteLLMModel, ToolCallingAgent, Tool
 
 logger = logging.getLogger(__name__)
 
 
 def create_beauchbot_agent(
-    system_prompt: Optional[str] = None,
-    model_id: Optional[str] = None,
-    temperature: float = 0.1,
-    add_base_tools: bool = True
+    system_prompt: str,
+    model_id: str,
+    temperature: float,
+    tools: list[Tool],
+    add_base_tools: bool
 ) -> ToolCallingAgent:
     """
     Create a BeauchBot agent with the standard tool configuration.
     
     Args:
-        system_prompt: Custom system prompt. If None, uses default.
-        model_id: Model ID to use. If None, uses MODEL_ID env var or default.
+        system_prompt: Custom system prompt.
+        model_id: Model ID to use.
         temperature: Model temperature (0.0-1.0)
         add_base_tools: Whether to add SmolAgents base tools
         
@@ -47,18 +36,7 @@ def create_beauchbot_agent(
         ValueError: If required environment variables are missing
     """
     try:
-        # Default system prompt
-        if system_prompt is None:
-            system_prompt = (
-                "You are BeauchBot, a helpful AI assistant that can answer questions and help with tasks. "
-                "You have access to tools for Google Docs, SMS/MMS messaging, and system utilities. "
-                "Use the tools provided to you to help the user effectively."
-            )
-        
-        # Model configuration
-        if model_id is None:
-            model_id = os.getenv("MODEL_ID", "openai/gpt-4o-mini")
-        
+        # Model configuration        
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable is required")
@@ -70,20 +48,12 @@ def create_beauchbot_agent(
             api_key=api_key
         )
         
-        # Standard BeauchBot tools
-        beauchbot_tools = [
-            list_google_documents,
-            read_google_document, 
-            send_text,
-            get_conversation_history,
-            get_phone_numbers,
-            get_current_time
-        ]
+        
         
         # Create agent
         agent = ToolCallingAgent(
             model=model,
-            tools=beauchbot_tools,
+            tools=tools,
             add_base_tools=add_base_tools,
             instructions=system_prompt
         )
@@ -145,35 +115,6 @@ def create_interactive_agent() -> ToolCallingAgent:
     )
 
 
-def create_cron_agent() -> ToolCallingAgent:
-    """
-    Create a BeauchBot agent specifically configured for cron job execution.
-    
-    This agent reads its system prompt from a Google Doc specified by the
-    SYSTEM_PROMPT_DOC_ID environment variable.
-    
-    Returns:
-        ToolCallingAgent configured with Google Doc system prompt
-        
-    Raises:
-        ValueError: If system prompt cannot be loaded from Google Doc
-    """
-    try:
-        # Fetch system prompt from Google Doc
-        system_prompt = get_system_prompt_from_google_doc()
-        
-        return create_beauchbot_agent(
-            system_prompt=system_prompt,
-            model_id=os.getenv("MODEL_ID", "openai/gpt-4o-mini"),
-            temperature=0.1,
-            add_base_tools=True
-        )
-        
-    except Exception as e:
-        logger.error(f"Failed to create cron agent: {e}")
-        raise
-
-
 # Convenience functions for specific use cases
 def get_webhook_agent() -> ToolCallingAgent:
     """Get a cached webhook agent (future: implement caching if needed)."""
@@ -183,8 +124,3 @@ def get_webhook_agent() -> ToolCallingAgent:
 def get_interactive_agent() -> ToolCallingAgent:
     """Get a cached interactive agent (future: implement caching if needed)."""
     return create_interactive_agent()
-
-
-def get_cron_agent() -> ToolCallingAgent:
-    """Get a cached cron agent (future: implement caching if needed)."""
-    return create_cron_agent()

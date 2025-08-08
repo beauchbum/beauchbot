@@ -44,6 +44,16 @@ def get_twilio_phone_number() -> str:
     return twilio_number
 
 
+def get_my_phone_number() -> str:
+    """Get my personal phone number from environment variables."""
+    my_number = os.getenv('MY_PHONE_NUMBER')
+    
+    if not my_number:
+        raise ValueError("MY_PHONE_NUMBER environment variable is required")
+    
+    return my_number
+
+
 class SendTextTool(Tool):
     name = "send_text"
     description = """Send a text message to an individual or group via Twilio.
@@ -137,6 +147,60 @@ class GetConversationHistoryTool(Tool):
         except Exception as e:
             logger.error(f"Error getting conversation history: {e}")
             return [{"error": f"Failed to get conversation history: {str(e)}"}]
+
+
+class TextMeTool(Tool):
+    name = "text_me"
+    description = """Send a text message to my personal phone number via Twilio.
+    
+    This tool uses the TWILIO_PHONE_NUMBER environment variable as the sender 
+    and MY_PHONE_NUMBER environment variable as the recipient.
+    
+    Returns message status information."""
+    inputs = {
+        "message": {
+            "type": "string", 
+            "description": "The message content to send to my phone"
+        }
+    }
+    output_type = "object"
+
+    def forward(self, message: str) -> Dict[str, Any]:
+        try:
+            if not message.strip():
+                return {"error": "Message content is required"}
+            
+            client = get_twilio_client()
+            from_number = get_twilio_phone_number()
+            to_number = get_my_phone_number()
+            
+            # Send SMS using standard Twilio messaging
+            message_result = client.messages.create(
+                body=message,
+                from_=from_number,
+                to=to_number
+            )
+            
+            response = {
+                "type": "text_me",
+                "message_sid": message_result.sid,
+                "to": to_number,
+                "from": from_number,
+                "body": message,
+                "status": message_result.status,
+                "date_created": message_result.date_created.isoformat() if message_result.date_created else None
+            }
+            
+            logger.info(f"Text message sent to personal number, Message: {message_result.sid}")
+            return response
+                
+        except ValueError as e:
+            logger.error(f"Configuration error: {e}")
+            return {"error": str(e)}
+        
+        except Exception as e:
+            logger.error(f"Error sending text message: {e}")
+            return {"error": f"Failed to send text message: {str(e)}"}
 
 
 # ============================================================================
