@@ -9,9 +9,11 @@ import os
 import logging
 
 from smolagents import LiteLLMModel, ToolCallingAgent, Tool, LogLevel
+import litellm
+
+litellm.turn_off_message_logging = True
 
 logger = logging.getLogger(__name__)
-
 
 def create_beauchbot_agent(
     system_prompt: str,
