@@ -15,7 +15,7 @@ RUN apt-get update && \
 RUN pip install poetry==1.8.3
 
 # Copy Poetry configuration files
-COPY pyproject.toml poetry.lock* ./
+COPY pyproject.toml poetry.lock ./
 
 # Configure Poetry to not create a virtual environment inside container
 RUN poetry config virtualenvs.create false
