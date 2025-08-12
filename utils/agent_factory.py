@@ -43,14 +43,17 @@ def create_beauchbot_agent(
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable is required")
         
-        # Create model
-        model = LiteLLMModel(
-            model_id=model_id,
-            temperature=temperature,
-            api_key=api_key
-        )
-        
-        
+        if model_id == "gpt-5":
+            model = LiteLLMModel(
+                model_id=model_id,
+                api_key=api_key
+            )
+        else:
+            model = LiteLLMModel(
+                model_id=model_id,
+                temperature=temperature,
+                api_key=api_key
+            )
         
         # Create agent
         agent = ToolCallingAgent(
