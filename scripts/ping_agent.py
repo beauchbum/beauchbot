@@ -101,8 +101,6 @@ def run_cron_execution(simulated_time: str = None, dry_run: bool = False) -> int
         
         agent =  create_beauchbot_agent(
             system_prompt=system_prompt,
-            model_id=os.getenv("MODEL_ID"),
-            temperature=0,
             add_base_tools=True,
             tools=beauchbot_tools if not dry_run else [tool for tool in beauchbot_tools if tool.name not in ["send_text", "text_me"]]
         )

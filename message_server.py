@@ -160,8 +160,6 @@ Please process this message according to your instructions.
         # Instantiate the AI agent using factory
         agent = create_beauchbot_agent(
             system_prompt=get_system_prompt_from_google_doc(),
-            model_id=os.getenv("MODEL_ID"),
-            temperature=0,
             add_base_tools=True,
             tools=tools
         )

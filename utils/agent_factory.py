@@ -8,7 +8,7 @@ across different entry points (web server, scripts, tests, etc.)
 import os
 import logging
 
-from smolagents import LiteLLMModel, ToolCallingAgent, Tool, LogLevel
+from smolagents import LiteLLMRouterModel, ToolCallingAgent, Tool, LogLevel
 import litellm
 
 litellm.turn_off_message_logging = True
@@ -17,8 +17,6 @@ logger = logging.getLogger(__name__)
 
 def create_beauchbot_agent(
     system_prompt: str,
-    model_id: str,
-    temperature: float,
     tools: list[Tool],
     add_base_tools: bool
 ) -> ToolCallingAgent:
@@ -27,8 +25,6 @@ def create_beauchbot_agent(
     
     Args:
         system_prompt: Custom system prompt.
-        model_id: Model ID to use.
-        temperature: Model temperature (0.0-1.0)
         add_base_tools: Whether to add SmolAgents base tools
         
     Returns:
@@ -38,22 +34,24 @@ def create_beauchbot_agent(
         ValueError: If required environment variables are missing
     """
     try:
-        # Model configuration        
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY environment variable is required")
-        
-        if model_id == "gpt-5":
-            model = LiteLLMModel(
-                model_id=model_id,
-                api_key=api_key
-            )
-        else:
-            model = LiteLLMModel(
-                model_id=model_id,
-                temperature=temperature,
-                api_key=api_key
-            )
+        model = LiteLLMRouterModel(
+            model_id="anthropic/claude-sonnet-4-20250514",
+            model_list=[
+                {
+                    "model_name": "anthropic/claude-sonnet-4-20250514",
+                    "litellm_params": {"model": "anthropic/claude-sonnet-4-20250514"},
+                },
+                {
+                    "model_name": "openai/gpt-5",
+                    "litellm_params": {"model": "openai/gpt-5"},
+                },
+                {
+                    "model_name": "openai/gpt-4.1",
+                    "litellm_params": {"model": "openai/gpt-4.1"},
+                }
+            ],
+            num_retries=3
+        )
         
         # Create agent
         agent = ToolCallingAgent(
@@ -64,7 +62,6 @@ def create_beauchbot_agent(
             verbosity_level=LogLevel.ERROR
         )
         
-        logger.info(f"Created BeauchBot agent with model: {model_id}")
         return agent
         
     except Exception as e:
@@ -91,8 +88,6 @@ def create_webhook_agent() -> ToolCallingAgent:
     
     return create_beauchbot_agent(
         system_prompt=webhook_prompt,
-        model_id="openai/gpt-4o-mini",  # Fast model for webhook processing
-        temperature=0.1,
         add_base_tools=True
     )
 
@@ -115,8 +110,6 @@ def create_interactive_agent() -> ToolCallingAgent:
     
     return create_beauchbot_agent(
         system_prompt=interactive_prompt,
-        model_id=os.getenv("MODEL_ID", "openai/gpt-4o"),  # More capable model for interactive use
-        temperature=0.0,  # More deterministic for API use
         add_base_tools=True
     )
 
