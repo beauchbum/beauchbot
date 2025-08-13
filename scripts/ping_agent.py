@@ -58,6 +58,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def parse_simulated_time(simulated_time: str) -> datetime:
+    """Parse the simulated time string and return a datetime object."""
+    if len(simulated_time.split(",")) == 2:  # "YYYY-MM-DD HH:MM"
+        naive_time = datetime.strptime(simulated_time, '%Y-%m-%d,%H:%M')
+    elif len(simulated_time.split(",")) == 1:  # "YYYY-MM-DD" (assume midnight)
+        naive_time = datetime.strptime(simulated_time, '%Y-%m-%d')
+    return naive_time.replace(tzinfo=ZoneInfo("America/New_York"))
+
 
 def run_cron_execution(simulated_time: str = None, dry_run: bool = False) -> int:
     """
@@ -112,14 +120,7 @@ def run_cron_execution(simulated_time: str = None, dry_run: bool = False) -> int
         # Determine the time to use (actual or simulated) - always in Eastern time
         if simulated_time:
             try:
-                # Parse the simulated time (assume it's in Eastern time)
-                if len(simulated_time.split(",")) == 2:  # "YYYY-MM-DD HH:MM"
-                    naive_time = datetime.strptime(simulated_time, '%Y-%m-%d,%H:%M')
-                elif len(simulated_time.split(",")) == 1:  # "YYYY-MM-DD" (assume midnight)
-                    naive_time = datetime.strptime(simulated_time, '%Y-%m-%d')
-                
-                # Convert to Eastern timezone
-                current_time_obj = naive_time.replace(tzinfo=eastern_tz)
+                current_time_obj = parse_simulated_time(simulated_time)
                 current_time_str = current_time_obj.strftime('%Y-%m-%d %I:%M %p')
                 logger.info(f"🕐 Using simulated time: {current_time_str}")
                 
@@ -176,13 +177,18 @@ def main():
     
     args = parser.parse_args()
     
-    
-    exit_code = run_cron_execution(simulated_time=args.simulate_time, dry_run=args.dry_run)
+    eastern_tz = ZoneInfo("America/New_York")
+    now = parse_simulated_time(args.simulate_time) if args.simulate_time else datetime.now(eastern_tz)
+    if now.hour >= 9 and now.hour < 21:
+        exit_code = run_cron_execution(simulated_time=args.simulate_time, dry_run=args.dry_run)
+    else:
+        logger.info("It's not time to run the cron job")
+        exit_code = 0
     
     if exit_code == 0:
-        logger.info("🎉 Cron job completed successfully")
+        logger.info("Cron job completed successfully")
     else:
-        logger.error("💥 Cron job failed")
+        logger.error("Cron job failed")
     
     return exit_code
 
