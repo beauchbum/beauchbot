@@ -35,22 +35,22 @@ def create_beauchbot_agent(
     """
     try:
         model = LiteLLMRouterModel(
-            model_id="anthropic/claude-sonnet-4-20250514",
+            model_id="gpt-5",
             model_list=[
                 {
-                    "model_name": "anthropic/claude-sonnet-4-20250514",
-                    "litellm_params": {"model": "anthropic/claude-sonnet-4-20250514"},
-                },
-                {
-                    "model_name": "openai/gpt-5",
+                    "model_name": "gpt-5",
                     "litellm_params": {"model": "openai/gpt-5"},
                 },
                 {
-                    "model_name": "openai/gpt-4.1",
+                    "model_name": "gpt-4",
                     "litellm_params": {"model": "openai/gpt-4.1"},
                 }
             ],
-            num_retries=3
+            client_kwargs={
+                "num_retries": 3,
+                "retry_after": 30,
+                "fallbacks": [{"gpt-5": ["gpt-4"]}]
+            }
         )
         
         # Create agent

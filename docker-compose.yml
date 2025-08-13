@@ -6,7 +6,8 @@ services:
     ports:
       - "${FASTAPI_PORT:-8000}:8000"
     volumes:
-      - .:/app
+      - .:/usr/src/app
+      - /usr/src/app/.venv
     env_file:
       - .env
     # Enable hot reload
