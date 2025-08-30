@@ -9,26 +9,20 @@ Organized into logical modules:
 
 # Import all tools from modules
 from .google_docs import (
-    ListGoogleDocumentsTool,
-    ReadGoogleDocumentTool, 
-    GetPhoneNumbersTool
+    list_google_documents,
+    read_google_document, 
+    get_phone_numbers
 )
 
 from .twilio import (
-    SendTextTool,
-    GetConversationHistoryTool,
-    TextMeTool,
+    send_text,
+    get_conversation_history,
+    text_me,
+    send_text_dry
 )
 
 from .system import (
-    GetCurrentTimeTool
+    get_current_time
 )
 
-# Create tool instances for use in agents
-list_google_documents = ListGoogleDocumentsTool()
-read_google_document = ReadGoogleDocumentTool()
-send_text = SendTextTool()
-get_conversation_history = GetConversationHistoryTool()
-text_me = TextMeTool()
-get_phone_numbers = GetPhoneNumbersTool()
-get_current_time = GetCurrentTimeTool()
+# Tools are now functions decorated with @function_tool, no need to instantiate

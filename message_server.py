@@ -7,13 +7,17 @@ from twilio.request_validator import RequestValidator
 # Import agent factory and conversation history tool for webhook
 from utils.agent_factory import create_beauchbot_agent
 from utils.google_utils import get_system_prompt_from_google_doc
+from utils.phone_utils import validate_phone_numbers_against_contacts
+from agents import Runner
 from tools import (
     list_google_documents,
     read_google_document, 
     get_conversation_history,
     text_me,
     get_phone_numbers,
-    get_current_time
+    get_current_time,
+    send_text,
+    send_text_dry
 )
 
 app = FastAPI()
@@ -76,35 +80,49 @@ async def root():
 @app.post("/message")
 async def message_webhook(
     request: Request,
-    MessageSid: str = Form(...),
     From: str = Form(...),
-    To: str = Form(...),
     Body: str = Form(...),
     validation_data: tuple = Depends(validate_twilio_signature),
 ):
     """
     Webhook endpoint for incoming Twilio messages.
     
-    This endpoint receives incoming text messages from Twilio, processes them
-    through an AI agent with access to BeauchBot tools, and can respond intelligently.
+    This endpoint receives incoming text messages from Twilio, validates that they
+    are from authorized contacts in the phone directory, and processes them through
+    an AI agent with access to BeauchBot tools.
+    
+    Security features:
+    - Twilio signature validation (bypass with TWILIO_WEBHOOK_DEBUG=true)
+    - Contact authorization validation (bypass with TWILIO_BYPASS_CONTACT_VALIDATION=true)
+    - Messages from unauthorized numbers are logged but ignored
     """
     try:
+        # Get all form data to extract OtherRecipients and other dynamic fields
+        form_data = await request.form()
+        form_dict = dict(form_data)
+        
         # Validate Twilio signature (unless in debug mode)
         validator, request_url, twilio_signature = validation_data
         
         if validator is not None:  # Not in debug mode
-            # Get form data for signature validation
-            form_data = await request.form()
-            form_dict = dict(form_data)
-            
             # Validate the signature
             if not validator.validate(request_url, form_dict, twilio_signature):
                 logger.warning(f"Invalid Twilio signature for request from {From}")
                 raise HTTPException(status_code=403, detail="Invalid signature")
             
-            logger.info(f"✅ Validated Twilio signature for message from {From} to {To}: {Body[:100]}...")
+            logger.info(f"✅ Validated Twilio signature for message from {From}: {Body[:100]}...")
         else:
-            logger.info(f"⚠️  Processing message from {From} to {To} (debug mode - signature not validated): {Body[:100]}...")
+            logger.info(f"⚠️  Processing message from {From} (debug mode - signature not validated): {Body[:100]}...")
+        
+        # Parse OtherRecipients fields (they come as OtherParticipants[0], OtherParticipants[1], etc.)
+        other_recipients = []
+        for key, value in form_dict.items():
+            if key.startswith('OtherRecipients['):
+                other_recipients.append(value)
+                logger.info(f"Found other recipient: {key} = {value}")
+        
+        # Log all form fields for debugging (can be removed in production)
+        logger.debug(f"All webhook form fields: {list(form_dict.keys())}")
         
         # Basic validation
         if not Body.strip():
@@ -112,40 +130,73 @@ async def message_webhook(
             return Response(content="<?xml version='1.0' encoding='UTF-8'?><Response></Response>", 
                           media_type="application/xml")
         
-
+        # Validate that the sender and other recipients are in our approved contacts
+        # Check if contact validation is disabled for development/testing
+        bypass_contact_validation = os.getenv('TWILIO_BYPASS_CONTACT_VALIDATION', '').lower() == 'true'
         
-        # Get conversation history for context
-        try:
-            conversation_history = get_conversation_history(From, 10)  # Get last 10 messages
-            if isinstance(conversation_history, list) and len(conversation_history) > 0 and "error" not in conversation_history[0]:
-                history_text = "\n".join([
-                    f"[{msg['date_created'][:16]}] {'You' if msg['direction'] == 'outbound-api' else 'Them'}: {msg['body']}"
-                    for msg in conversation_history[-5:]  # Show last 5 for context
-                ])
-                conversation_context = f"\nRecent conversation history:\n{history_text}\n"
-            else:
-                conversation_context = ""
-        except Exception as e:
-            logger.warning(f"Could not get conversation history: {e}")
-            conversation_context = ""
+        # Collect all phone numbers to validate (sender + other recipients)
+        all_phone_numbers = [From] + other_recipients
+        
+        if bypass_contact_validation:
+            logger.warning("Contact validation is BYPASSED - accepting message from any phone number")
+            matching_contacts = [{'name': 'Unknown Contact', 'phone_number': num} for num in all_phone_numbers]
+            sender_contact = matching_contacts[0]
+            other_contacts = matching_contacts[1:] if len(matching_contacts) > 1 else []
+        else:
+            valid_numbers, invalid_numbers, matching_contacts = validate_phone_numbers_against_contacts(all_phone_numbers)
+            
+            # Check if sender is unauthorized
+            if From in invalid_numbers:
+                logger.warning(f"Received message from unauthorized phone number: {From}")
+                # Log the attempt but don't respond to unauthorized numbers
+                return Response(content="<?xml version='1.0' encoding='UTF-8'?><Response></Response>", 
+                              media_type="application/xml")
+            
+            # Separate sender contact from other contacts
+            sender_contact = next((c for c in matching_contacts if c['phone_number'] == From), None)
+            other_contacts = [c for c in matching_contacts if c['phone_number'] != From]
+            
+            # Log any unauthorized other recipients (but still process the message)
+            if invalid_numbers:
+                unauthorized_others = [num for num in invalid_numbers if num != From]
+                if unauthorized_others:
+                    logger.warning(f"Group message includes unauthorized recipients: {unauthorized_others}")
+        
+        # Log the validated contacts
+        if sender_contact:
+            logger.info(f"Processing message from authorized contact: {sender_contact['name']} ({From})")
+        
+        if other_contacts:
+            other_names = [f"{c['name']} ({c['phone_number']})" for c in other_contacts]
+            logger.info(f"Group message includes other authorized participants: {', '.join(other_names)}")
+        
 
         # Create context for the agent about the incoming message
+        sender_info = f" ({sender_contact['name']})" if sender_contact else ""
+        
+        # Build group participants information
+        if other_contacts:
+            group_info = "\n- Group Participants: "
+            all_participants = [sender_contact['name']] if sender_contact else [From]
+            all_participants.extend([c['name'] for c in other_contacts])
+            group_info += ", ".join(all_participants)
+            message_type = "group message"
+        else:
+            group_info = ""
+            message_type = "individual message"
+
+        
+        
         message_context = f"""
-You have received a text message:
-- From: {From}
-- To: {To}
-- Message: {Body}
-- Message ID: {MessageSid}
-- Conversation history: {conversation_context}
+        You have received a {message_type}:
+        - From: {From}{sender_info}
+        - To: {os.getenv('TWILIO_PHONE_NUMBER')}
+        - Other Recipients: {', '.join(other_recipients)}
+        - Message: {Body}
 
-Based on this incoming message, decide what action to take. You can:
-1. Use the get_phone_numbers tool to get the phone numbers of the people involved
-2. Read Google docs if there's missing context
-3. Text your admin back if you need to using the text_me tool
-4. Simply acknowledge the message if no specific action is needed
-
-Please process this message according to your instructions.
-"""
+        Based on this incoming message, decide what action to take. Reference your system prompt to understand your
+        purpose and then use your tools and the contents of this message to decide what action to take (if any)
+        """
 
         # Standard BeauchBot tools
         tools = [
@@ -153,20 +204,44 @@ Please process this message according to your instructions.
             read_google_document, 
             get_conversation_history,
             text_me,
+            send_text_dry if os.getenv('TWILIO_WEBHOOK_DEBUG') == 'true' else send_text,
             get_phone_numbers,
             get_current_time
         ]
 
         # Instantiate the AI agent using factory
         agent = create_beauchbot_agent(
-            system_prompt=get_system_prompt_from_google_doc(),
-            add_base_tools=True,
-            tools=tools
+            system_prompt=f"""
+            You are a responsive AI agent that has been activated by an incoming ping/message. You share a system with an hourly agent that executes scheduled tasks, but you have a different role.
+            Context Awareness
+            You have access to the hourly agent's instructions for reference only:
+            HOURLY AGENT INSTRUCTIONS (FOR CONTEXT ONLY - DO NOT EXECUTE):
+            {get_system_prompt_from_google_doc()}
+            Your Role
+
+            PRIMARY FUNCTION: Respond to the incoming ping/message that activated you
+            CONTEXT USE: Use the hourly agent's instructions as background context to better understand:
+
+            The overall system's purpose and goals
+            Relevant data sources, APIs, or tools available
+            Key metrics, processes, or domains the system monitors
+            How your response might complement or relate to the scheduled operations
+
+            Important Constraints
+
+            DO NOT execute any of the hourly agent's scheduled tasks
+            DO NOT perform any recurring/scheduled operations
+            DO NOT initiate any automated processes described in the hourly instructions
+            Focus solely on responding to the immediate ping/message
+            """,
+            tools=tools,
+            add_base_tools=True
         )
         
         # Process the message through the agent
         logger.info("Processing message through AI agent...")
-        agent_response = agent.run(message_context)
+        
+        agent_response = await Runner.run(agent, message_context)
         
         logger.info(f"Agent processing completed. Response: {str(agent_response)[:200]}...")
         

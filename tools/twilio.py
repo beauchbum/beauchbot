@@ -12,11 +12,14 @@ import logging
 import re
 from typing import List, Dict, Any
 
-# SmolAgents
-from smolagents import Tool
+# OpenAI Agents
+from agents import function_tool
 
 # Twilio
 from twilio.rest import Client
+
+# Import shared phone utilities
+from utils.phone_utils import validate_phone_numbers_against_contacts, format_contact_list_for_error
 
 logger = logging.getLogger(__name__)
 
@@ -54,153 +57,160 @@ def get_my_phone_number() -> str:
     return my_number
 
 
-class SendTextTool(Tool):
-    name = "send_text"
-    description = """Send a text message to an individual or group via Twilio.
+@function_tool
+def send_text(to_numbers: List[str], message: str) -> Dict[str, Any]:
+    """Send a text message to an individual or group via Twilio.
 
-    Use the get_phone_numbers tool to get a list of contacts with their names and phone numbers for Twilio interactions.
-    
     For individual messaging (1 number): Standard SMS between you and one recipient
     For group messaging (2+ numbers): Creates Group MMS where all participants see each other's messages
     Group MMS requires US/Canada (+1) numbers and creates true group conversations.
     Automatically reuses existing conversations with the same participants to avoid conflicts.
     
-    Returns message status information or group conversation details including 'reused_existing' flag."""
-    inputs = {
-        "to_numbers": {
-            "type": "array",
-            "items": {
-                "type": "string",
-                "description": "Phone number to send to in E.164 format (e.g., '+12345678901')"
-            },
-            "description": "List of phone numbers to send to in E.164 format (e.g., ['+12345678901'] for individual or ['+12345678901', '+19876543210'] for group)"
-        },
-        "message": {
-            "type": "string", 
-            "description": "The message content to send"
-        }
-    }
-    output_type = "object"
-
-    def forward(self, to_numbers: List[str], message: str) -> Dict[str, Any]:
-        try:
-            if not to_numbers or len(to_numbers) == 0:
-                return {"error": "At least one phone number is required"}
-            
-            client = get_twilio_client()
-            from_number = get_twilio_phone_number()
-            
-            # Determine if this is individual or group messaging based on recipient count
-            if len(to_numbers) == 1:
-                # Individual messaging using standard SMS
-                return _send_individual_text(client, from_number, to_numbers[0], message)
-            else:
-                # Group messaging using Group MMS
-                return _send_group_text(client, from_number, to_numbers, message)
-                
-        except ValueError as e:
-            logger.error(f"Configuration error: {e}")
-            return {"error": str(e)}
+    Args:
+        to_numbers: List of phone numbers to send to in E.164 format (e.g., ['+12345678901'] for individual or ['+12345678901', '+19876543210'] for group)
+        message: The message content to send
+    
+    Returns:
+        Message status information or group conversation details including 'reused_existing' flag
+    """
+    try:
+        if not to_numbers or len(to_numbers) == 0:
+            return {"error": "At least one phone number is required"}
         
-        except Exception as e:
-            logger.error(f"Error sending text: {e}")
-            return {"error": f"Failed to send text: {str(e)}"}
+        # Validate phone numbers against allowed contacts
+        valid_numbers, invalid_numbers, matching_contacts = validate_phone_numbers_against_contacts(to_numbers)
+        
+        if invalid_numbers:
+            # Get full contact list for error message
+            from utils.phone_utils import get_allowed_contacts
+            all_contacts = get_allowed_contacts()
+            contact_list = format_contact_list_for_error(all_contacts)
+            
+            error_msg = f"Cannot send messages to unauthorized phone numbers: {', '.join(invalid_numbers)}\n\n{contact_list}"
+            return {"error": error_msg}
+        
+        if not valid_numbers:
+            return {"error": "No valid phone numbers provided"}
+        
+        client = get_twilio_client()
+        from_number = get_twilio_phone_number()
+        
+        # Log the validated contacts
+        contact_names = [contact['name'] for contact in matching_contacts]
+        logger.info(f"Sending message to validated contacts: {', '.join(contact_names)}")
+        
+        # Determine if this is individual or group messaging based on recipient count
+        if len(valid_numbers) == 1:
+            # Individual messaging using standard SMS
+            return _send_individual_text(client, from_number, valid_numbers[0], message)
+        else:
+            # Group messaging using Group MMS
+            return _send_group_text(client, from_number, valid_numbers, message)
+            
+    except ValueError as e:
+        logger.error(f"Configuration error: {e}")
+        return {"error": str(e)}
+    
+    except Exception as e:
+        logger.error(f"Error sending text: {e}")
+        return {"error": f"Failed to send text: {str(e)}"}
+    
+@function_tool
+def send_text_dry(to_numbers: List[str], message: str) -> Dict[str, Any]:
+    """Send a text message to a group via Twilio. This is a dry run tool that will not send a message to the group.
+    Use this message when you would have used the send_text tool, but you want to see what the message would look like before sending it.
 
+    Args:
+        to_numbers: List of phone numbers to send to in E.164 format (e.g., ['+12345678901'] for individual or ['+12345678901', '+19876543210'] for group)
+        message: The message content to send
 
-class GetConversationHistoryTool(Tool):
-    name = "get_conversation_history"
-    description = """Get conversation history for either an individual phone number or a group conversation.
+    Returns:
+        A dictionary with the message content and status
+    """
+    return {"debug": "This is a dry run tool that will not send a message to the group.", "to_numbers": to_numbers, "message": message, "status": "dry_run"}
+
+@function_tool
+def get_conversation_history(identifier: str, limit: int = 20) -> List[Dict[str, Any]]:
+    """Get conversation history for either an individual phone number or a group conversation.
     
     Use the get_phone_numbers tool to get a list of contacts with their names and phone numbers for Twilio interactions.
     For individual chats: Provide a phone number in E.164 format (e.g., "+1234567890")
     For group chats: Provide a conversation SID starting with 'CH' (e.g., "CHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
     
-    Returns a list of messages in the conversation, sorted by date (most recent first)."""
-    inputs = {
-        "identifier": {
-            "type": "string",
-            "description": "Phone number in E.164 format (e.g., '+1234567890') for individual chat, or conversation SID (CHxxx) for group chat"
-        },
-        "limit": {
-            "type": "integer",
-            "description": "Maximum number of messages to return (default: 20)",
-            "nullable": True
-        }
-    }
-    output_type = "array"
-
-    def forward(self, identifier: str, limit: int = 20) -> List[Dict[str, Any]]:
-        try:
-            if not identifier.strip():
-                return [{"error": "Phone number or conversation SID is required"}]
+    Args:
+        identifier: Phone number in E.164 format (e.g., '+1234567890') for individual chat, or conversation SID (CHxxx) for group chat
+        limit: Maximum number of messages to return (default: 20)
+    
+    Returns:
+        List of messages in the conversation, sorted by date (most recent first)
+    """
+    try:
+        if not identifier.strip():
+            return [{"error": "Phone number or conversation SID is required"}]
+        
+        client = get_twilio_client()
+        
+        # Determine if this is a conversation SID or phone number
+        if identifier.startswith('CH') and len(identifier) == 34:
+            # This is a conversation SID - get group conversation history
+            return _get_group_conversation_history(client, identifier, limit)
+        else:
+            # This is a phone number - get individual conversation history
+            return _get_individual_conversation_history(client, identifier, limit)
             
-            client = get_twilio_client()
-            
-            # Determine if this is a conversation SID or phone number
-            if identifier.startswith('CH') and len(identifier) == 34:
-                # This is a conversation SID - get group conversation history
-                return _get_group_conversation_history(client, identifier, limit)
-            else:
-                # This is a phone number - get individual conversation history
-                return _get_individual_conversation_history(client, identifier, limit)
-                
-        except Exception as e:
-            logger.error(f"Error getting conversation history: {e}")
-            return [{"error": f"Failed to get conversation history: {str(e)}"}]
+    except Exception as e:
+        logger.error(f"Error getting conversation history: {e}")
+        return [{"error": f"Failed to get conversation history: {str(e)}"}]
 
 
-class TextMeTool(Tool):
-    name = "text_me"
-    description = """Send a text message to my personal phone number via Twilio.
+@function_tool
+def text_me(message: str) -> Dict[str, Any]:
+    """Send a text message to my personal phone number via Twilio.
     
     This tool uses the TWILIO_PHONE_NUMBER environment variable as the sender 
     and MY_PHONE_NUMBER environment variable as the recipient.
     
-    Returns message status information."""
-    inputs = {
-        "message": {
-            "type": "string", 
-            "description": "The message content to send to my phone"
-        }
-    }
-    output_type = "object"
-
-    def forward(self, message: str) -> Dict[str, Any]:
-        try:
-            if not message.strip():
-                return {"error": "Message content is required"}
-            
-            client = get_twilio_client()
-            from_number = get_twilio_phone_number()
-            to_number = get_my_phone_number()
-            
-            # Send SMS using standard Twilio messaging
-            message_result = client.messages.create(
-                body=message,
-                from_=from_number,
-                to=to_number
-            )
-            
-            response = {
-                "type": "text_me",
-                "message_sid": message_result.sid,
-                "to": to_number,
-                "from": from_number,
-                "body": message,
-                "status": message_result.status,
-                "date_created": message_result.date_created.isoformat() if message_result.date_created else None
-            }
-            
-            logger.info(f"Text message sent to personal number, Message: {message_result.sid}")
-            return response
-                
-        except ValueError as e:
-            logger.error(f"Configuration error: {e}")
-            return {"error": str(e)}
+    Args:
+        message: The message content to send to my phone
+    
+    Returns:
+        Message status information
+    """
+    try:
+        if not message.strip():
+            return {"error": "Message content is required"}
         
-        except Exception as e:
-            logger.error(f"Error sending text message: {e}")
-            return {"error": f"Failed to send text message: {str(e)}"}
+        client = get_twilio_client()
+        from_number = get_twilio_phone_number()
+        to_number = get_my_phone_number()
+        
+        # Send SMS using standard Twilio messaging
+        message_result = client.messages.create(
+            body=message,
+            from_=from_number,
+            to=to_number
+        )
+        
+        response = {
+            "type": "text_me",
+            "message_sid": message_result.sid,
+            "to": to_number,
+            "from": from_number,
+            "body": message,
+            "status": message_result.status,
+            "date_created": message_result.date_created.isoformat() if message_result.date_created else None
+        }
+        
+        logger.info(f"Text message sent to personal number, Message: {message_result.sid}")
+        return response
+            
+    except ValueError as e:
+        logger.error(f"Configuration error: {e}")
+        return {"error": str(e)}
+    
+    except Exception as e:
+        logger.error(f"Error sending text message: {e}")
+        return {"error": f"Failed to send text message: {str(e)}"}
 
 
 # ============================================================================

@@ -34,7 +34,7 @@ import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
-
+from agents import Runner
 # Add the project root to the Python path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
@@ -48,7 +48,8 @@ from tools import (
     get_conversation_history,
     text_me,
     get_phone_numbers,
-    get_current_time
+    get_current_time,
+    send_text_dry
 )
 
 # Set up logging
@@ -101,16 +102,16 @@ def run_cron_execution(simulated_time: str = None, dry_run: bool = False) -> int
         beauchbot_tools = [
             list_google_documents,
             read_google_document, 
-            send_text,
+            send_text_dry if dry_run else send_text,
             get_conversation_history,
             text_me,
             get_phone_numbers
         ]
         
-        agent =  create_beauchbot_agent(
+        agent = create_beauchbot_agent(
             system_prompt=system_prompt,
-            add_base_tools=True,
-            tools=beauchbot_tools if not dry_run else [tool for tool in beauchbot_tools if tool.name not in ["send_text", "text_me"]]
+            tools=beauchbot_tools,
+            add_base_tools=True
         )
         logger.info("✅ Agent initialized successfully")
         
@@ -143,7 +144,8 @@ Use your available tools as needed to complete your tasks.
 """
         
         logger.info("🤖 Executing cron instructions...")
-        response = agent.run(cron_context)
+        # For OpenAI Agents, we need to use the Runner to execute the agent
+        response = Runner.run_sync(agent, cron_context)
         
         # Log the response
         logger.info("✅ Cron execution completed successfully")
@@ -194,5 +196,4 @@ def main():
 
 
 if __name__ == "__main__":
-    
     sys.exit(main())
