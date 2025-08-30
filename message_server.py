@@ -113,7 +113,7 @@ async def message_webhook(
         else:
             validator = RequestValidator(os.getenv('TWILIO_AUTH_TOKEN'))
             if not validator.validate(
-                url, 
+                url.replace("http://", "https://"), 
                 form_dict, 
                 signature
             ):
