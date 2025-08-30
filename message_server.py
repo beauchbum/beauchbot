@@ -80,9 +80,7 @@ async def root():
 @app.post("/message")
 async def message_webhook(
     request: Request,
-    MessageSid: str = Form(...),
     From: str = Form(...),
-    To: str = Form(default=f"{os.getenv('TWILIO_PHONE_NUMBER')}"),
     Body: str = Form(...),
 ):
     """
@@ -108,7 +106,7 @@ async def message_webhook(
             validator = RequestValidator(os.getenv('TWILIO_AUTH_TOKEN'))
             if not validator.validate(
                 str(request.url), 
-                form_data, 
+                form_dict, 
                 request.headers.get("X-Twilio-Signature", "")
             ):
                 raise HTTPException(status_code=400, detail="Error in Twilio Signature")
