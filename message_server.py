@@ -80,7 +80,9 @@ async def root():
 @app.post("/message")
 async def message_webhook(
     request: Request,
+    MessageSid: str = Form(...),
     From: str = Form(...),
+    To: str = Form(default=f"{os.getenv('TWILIO_PHONE_NUMBER')}"),
     Body: str = Form(...),
     validation_data: tuple = Depends(validate_twilio_signature),
 ):
