@@ -101,6 +101,11 @@ async def message_webhook(
         # Get all form data to extract OtherRecipients and other dynamic fields
         form_data = await request.form()
         form_dict = dict(form_data)
+        signature = request.headers.get("X-Twilio-Signature", "")
+
+        logger.info(form_dict)
+        logger.info(signature)
+        
 
         if os.getenv('TWILIO_WEBHOOK_DEBUG', '').lower() == 'true':
             logger.warning("Twilio webhook signature validation is DISABLED (debug mode)")
@@ -109,7 +114,7 @@ async def message_webhook(
             if not validator.validate(
                 str(request.url), 
                 form_dict, 
-                request.headers.get("X-Twilio-Signature", "")
+                signature
             ):
                 raise HTTPException(status_code=400, detail="Error in Twilio Signature")
         
