@@ -84,7 +84,6 @@ async def message_webhook(
     From: str = Form(...),
     To: str = Form(default=f"{os.getenv('TWILIO_PHONE_NUMBER')}"),
     Body: str = Form(...),
-    validation_data: tuple = Depends(validate_twilio_signature),
 ):
     """
     Webhook endpoint for incoming Twilio messages.
@@ -102,19 +101,17 @@ async def message_webhook(
         # Get all form data to extract OtherRecipients and other dynamic fields
         form_data = await request.form()
         form_dict = dict(form_data)
-        
-        # Validate Twilio signature (unless in debug mode)
-        validator, request_url, twilio_signature = validation_data
-        
-        if validator is not None:  # Not in debug mode
-            # Validate the signature
-            if not validator.validate(request_url, form_dict, twilio_signature):
-                logger.warning(f"Invalid Twilio signature for request from {From}")
-                raise HTTPException(status_code=403, detail="Invalid signature")
-            
-            logger.info(f"✅ Validated Twilio signature for message from {From}: {Body[:100]}...")
+
+        if os.getenv('TWILIO_WEBHOOK_DEBUG', '').lower() == 'true':
+            logger.warning("Twilio webhook signature validation is DISABLED (debug mode)")
         else:
-            logger.info(f"⚠️  Processing message from {From} (debug mode - signature not validated): {Body[:100]}...")
+            validator = RequestValidator(os.getenv('TWILIO_AUTH_TOKEN'))
+            if not validator.validate(
+                str(request.url), 
+                form_data, 
+                request.headers.get("X-Twilio-Signature", "")
+            ):
+                raise HTTPException(status_code=400, detail="Error in Twilio Signature")
         
         # Parse OtherRecipients fields (they come as OtherParticipants[0], OtherParticipants[1], etc.)
         other_recipients = []
