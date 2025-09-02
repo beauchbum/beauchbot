@@ -37,6 +37,9 @@ GOOGLE_SERVICE_ACCOUNT_B64=your_encoded_service_account
 
 # System prompt (Google Doc ID)
 SYSTEM_PROMPT_DOC_ID=your_system_prompt_document_id
+
+# Attendance Sheets (for attendance tracking)
+ATTENDANCE_SHEET_ID=your_attendance_google_sheets_document_id
 ```
 
 ### Using Docker (Recommended)

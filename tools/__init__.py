@@ -11,7 +11,8 @@ Organized into logical modules:
 from .google_docs import (
     list_google_documents,
     read_google_document, 
-    get_phone_numbers
+    get_phone_numbers,
+    write_attendance
 )
 
 from .twilio import (

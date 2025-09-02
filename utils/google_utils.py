@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 SCOPES = [
     'https://www.googleapis.com/auth/documents.readonly',
     'https://www.googleapis.com/auth/drive.readonly',
-    'https://www.googleapis.com/auth/spreadsheets.readonly'
+    'https://www.googleapis.com/auth/spreadsheets'  # Full read/write access to sheets
 ]
 
 
@@ -96,6 +96,23 @@ def get_google_drive_service():
         return build('drive', 'v3', credentials=creds)
     except Exception as e:
         raise ValueError(f"Failed to create Google Drive service: {e}")
+
+
+def get_google_sheets_service():
+    """
+    Get Google Sheets service with service account authentication.
+    
+    Returns:
+        Google Sheets service object
+        
+    Raises:
+        ValueError: If service cannot be created
+    """
+    try:
+        creds = _get_service_account_credentials()
+        return build('sheets', 'v4', credentials=creds)
+    except Exception as e:
+        raise ValueError(f"Failed to create Google Sheets service: {e}")
 
 
 def extract_text_from_document(doc_content: Dict[str, Any]) -> str:

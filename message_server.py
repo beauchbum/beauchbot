@@ -17,7 +17,8 @@ from tools import (
     get_phone_numbers,
     get_current_time,
     send_text,
-    send_text_dry
+    send_text_dry,
+    write_attendance
 )
 
 app = FastAPI()
@@ -80,9 +81,7 @@ async def root():
 @app.post("/message")
 async def message_webhook(
     request: Request,
-    MessageSid: str = Form(...),
     From: str = Form(...),
-    To: str = Form(...),
     Body: str = Form(...),
 ):
     """
@@ -103,10 +102,6 @@ async def message_webhook(
         form_data = await request.form()
         form_dict = dict(form_data)
         signature = request.headers.get("X-Twilio-Signature", "")
-
-        logger.info(url)
-        logger.info(form_dict)
-        logger.info(signature)
 
         if os.getenv('TWILIO_WEBHOOK_DEBUG', '').lower() == 'true':
             logger.warning("Twilio webhook signature validation is DISABLED (debug mode)")
@@ -211,7 +206,8 @@ async def message_webhook(
             text_me,
             send_text_dry if os.getenv('TWILIO_WEBHOOK_DEBUG') == 'true' else send_text,
             get_phone_numbers,
-            get_current_time
+            get_current_time,
+            write_attendance
         ]
 
         # Instantiate the AI agent using factory
