@@ -267,14 +267,14 @@ def write_attendance(date: str, run_name: str = None, names: List[str] = None) -
         target_sheet_name = target_sheet['properties']['title']
         target_sheet_id = target_sheet['properties']['sheetId']
         
-        # Step 1: Insert a new column at position 1 (before column B, which is index 1)
+        # Step 1: Insert a new column at position 2 (after column B, which is index 1)
         insert_request = {
             "insertDimension": {
                 "range": {
                     "sheetId": target_sheet_id,
                     "dimension": "COLUMNS",
-                    "startIndex": 1,  # Column B is at index 1 (A=0, B=1, C=2...)
-                    "endIndex": 2     # Insert 1 column
+                    "startIndex": 2,  # Column B is at index 1 (A=0, B=1, C=2...)
+                    "endIndex": 3     # Insert 1 column
                 },
                 "inheritFromBefore": False
             }
@@ -290,9 +290,9 @@ def write_attendance(date: str, run_name: str = None, names: List[str] = None) -
             body=batch_update_request
         ).execute()
         
-        logger.info("Successfully inserted new column before column B")
+        logger.info("Successfully inserted new column after column B")
         
-        # Step 2: Build the data to write to the new column B
+        # Step 2: Build the data to write to the new column C
         data = []
         
         # Row 1: Date
@@ -306,15 +306,15 @@ def write_attendance(date: str, run_name: str = None, names: List[str] = None) -
             for name in names:
                 data.append([name])
         
-        # Step 3: Write data to the new column B (which is where we inserted)
-        range_name = f"{target_sheet_name}!B1:B{len(data)}"
+        # Step 3: Write data to the new column C (which is where we inserted)
+        range_name = f"{target_sheet_name}!C1:C{len(data)}"
         
         # Prepare the request body
         body = {
             'values': data
         }
         
-        # Update/overwrite data at the new column B
+        # Update/overwrite data at the new column C
         result = sheets_service.spreadsheets().values().update(
             spreadsheetId=spreadsheet_id,
             range=range_name,
@@ -330,7 +330,7 @@ def write_attendance(date: str, run_name: str = None, names: List[str] = None) -
         response = {
             "success": True,
             "operation": "write_attendance_with_column_insert",
-            "inserted_column": "B",
+            "inserted_column": "C",
             "date": date,
             "run_name": run_name,
             "attendee_count": len(names) if names else 0,
